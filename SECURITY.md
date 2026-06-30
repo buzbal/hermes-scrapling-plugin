@@ -18,24 +18,36 @@ The plugin itself only talks to your local machine. Here's what connects where:
 
 ### What gets changed
 
-A function inside Hermes called `_is_backend_available()`. This function checks whether a backend name (like "firecrawl" or "searxng") is usable.
+Two functions inside Hermes:
+
+1. **`_is_backend_available()`** — checks whether a backend name (like "firecrawl" or "searxng") is usable at runtime.
+2. **`check_web_api_key()`** — decides whether `web_search` and `web_extract` appear in the tool list at all.
 
 ### The actual code that runs
 
 ```python
+# Patch 1: _is_backend_available
 orig = wt._is_backend_available
 def patched(backend):
     if backend == "scrapling":
         return True
     return orig(backend)
 wt._is_backend_available = patched
+
+# Patch 2: check_web_api_key
+orig_check = wt.check_web_api_key
+def patched_check():
+    if configured == "scrapling" and provider_is_available:
+        return True
+    return orig_check()
+wt.check_web_api_key = patched_check
 ```
 
 ### What this changes
 
-- **Before the patch**: asking `_is_backend_available("scrapling")` returns `False`
-- **After the patch**: asking `_is_backend_available("scrapling")` returns `True`
-- **Everything else**: unchanged — it calls the original function
+- **Before**: both functions return `False` for `"scrapling"`
+- **After**: both return `True` when Scrapling is configured and available
+- **Everything else**: unchanged — delegates to the original
 
 ### Why it's needed
 

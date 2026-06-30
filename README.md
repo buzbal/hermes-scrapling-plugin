@@ -175,11 +175,13 @@ You should get the page content back instead of an error message saying SearXNG 
 
 ## What the monkey-patch does (and why it's safe)
 
-This plugin applies one small runtime patch — a "monkey-patch" in programmer slang, meaning it temporarily replaces a function while the program is running. Here's exactly what, why, and why you don't need to worry.
+This plugin applies two small runtime patches — a "monkey-patch" in programmer slang, meaning it temporarily replaces a function while the program is running. Here's exactly what, why, and why you don't need to worry.
 
 ### The problem
 
-Inside Hermes, there's a function called `_is_backend_available()` that checks whether a backend name is usable. It has a hardcoded list:
+Inside Hermes, there are two functions with hardcoded lists of 8 known backends:
+
+**Gate 1 — `_is_backend_available()` (runtime dispatch):**
 
 ```python
 def _is_backend_available(backend):
@@ -194,9 +196,24 @@ def _is_backend_available(backend):
     return False  # ← anything else is rejected
 ```
 
-When you set `extract_backend: scrapling` in config, this function returns `False` because `"scrapling"` isn't in the list. The config value gets thrown away, `web_extract` falls back to SearXNG, SearXNG can't extract pages (it's a search engine, not a page fetcher), and you get an error. The plugin system is never even asked.
+**Gate 2 — `check_web_api_key()` (tool registration):**
 
-### The patch
+```python
+def check_web_api_key():
+    configured = _load_web_config().get("backend", "")
+    if configured in {"exa", "parallel", "firecrawl", "tavily",
+                      "searxng", "brave-free", "ddgs", "xai"}:
+        return _is_backend_available(configured)
+    return any(_is_backend_available(b) for b in [...])
+```
+
+This function decides whether `web_search` and `web_extract` even **appear in the tool list**. If it returns `False`, the tools are silently dropped — you won't see them in `hermes tools` or be able to call them.
+
+When you set `extract_backend: scrapling` in config, both functions return `False` because `"scrapling"` isn't in the list. The config value gets thrown away, `web_extract` falls back to SearXNG, SearXNG can't extract pages (it's a search engine, not a page fetcher), and you get an error. The plugin system is never even asked.
+
+### The patches
+
+**Patch 1 — `_is_backend_available()`:**
 
 ```python
 import tools.web_tools as wt
@@ -210,7 +227,24 @@ def patched(backend):
 wt._is_backend_available = patched
 ```
 
-This saves the original function, then replaces it with a new one that first checks for `"scrapling"` and passes everything else through to the original. It's like adding one item to a checklist without touching the rest.
+**Patch 2 — `check_web_api_key()`:**
+
+```python
+orig_check = wt.check_web_api_key
+
+def patched_check():
+    # If scrapling is configured and available, return True
+    configured = (cfg.get("backend") or cfg.get("extract_backend") or "").lower().strip()
+    if configured == "scrapling":
+        provider = get_provider("scrapling")
+        if provider and provider.is_available():
+            return True
+    return orig_check()
+
+wt.check_web_api_key = patched_check
+```
+
+Both patches save the original function, then replace it with a new one that first checks for `"scrapling"` and passes everything else through to the original. It's like adding one item to a checklist without touching the rest.
 
 ### Safety
 
