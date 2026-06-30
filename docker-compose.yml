@@ -1,0 +1,6 @@
+services:
+  scrapling:
+    image: pyd4vinci/scrapling:latest
+    ports:
+      - "8000:8000"
+    command: mcp --http

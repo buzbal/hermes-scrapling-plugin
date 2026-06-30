@@ -1,0 +1,12 @@
+name: web-scrapling
+version: 1.0.0
+description: >
+  Scrapling web extract — routes web_extract calls through a local Scrapling MCP
+  server. Supports markdown, HTML, and text extraction with browser fingerprint
+  impersonation, CSS selector targeting, and anti-bot bypass. Requires a running
+  Scrapling MCP server (Docker or pip). Default port is 8000, configurable via
+  the SCRAPLING_MCP_URL environment variable.
+author: "buzbal (AI-assisted — see credits in README)"
+kind: backend
+provides_web_providers:
+  - scrapling
